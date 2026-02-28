@@ -1,0 +1,74 @@
+### --- Python Standard ---
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/      # <-- Das Wichtige für dich!
+.installed.cfg
+*.egg
+MANIFEST
+
+### --- Environments ---
+# Virtuelle Umgebungen (lokal)
+.venv/
+venv/
+ENV/
+env/
+# Poetry/uv spezifisch
+.python-version
+.pdm.toml
+.uv/
+
+### --- IDEs & Editors ---
+# PyCharm / JetBrains (Wichtig für dich)
+.idea/
+cmake-build-*/
+# VS Code
+.vscode/
+*.code-workspace
+
+### --- Testing & Coverage ---
+.pytest_cache/
+.tox/
+.nosetests
+htmlcov/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+
+### --- OS & System ---
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*~
+
+### --- PSA / Server Automatisierung ---
+# Ansible
+*.retry
+ansible.log
+
+# Secrets & Configs (NIEMALS HOCHLADEN)
+.env
+secret.yaml
+*.pem
+*.key
+
+# Egg-info Verzeichnisse
+*.egg-info/
