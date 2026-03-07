@@ -72,3 +72,8 @@ secret.yaml
 
 # Egg-info Verzeichnisse
 *.egg-info/
+
+# Add logs folder
+
+logs/*
+*.log

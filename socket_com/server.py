@@ -1,5 +1,6 @@
 import json
 import socket
+from utils.logger_conifg import server_logger as logger
 
 server_address = ('127.0.0.1', 6543)
 ENCODING = 'utf-8'
@@ -15,13 +16,13 @@ try:
        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
        server_socket.bind(server_address)
        server_socket.listen(1)
-       print(f'Server auf {server_address[0]}:{server_address[1]} gestartet')
+       logger.info(f'Server auf {server_address[0]}:{server_address[1]} gestartet')
 
        while True:
-           print('\nWarte auf eingehende Verbindung...')
+           logger.info('\nWarte auf eingehende Verbindung...')
            try:
                connection, client_address = server_socket.accept()
-               print(f'\t- Verbindung akzeptiert von {client_address}, lese Buffer')
+               logger.info(f'\t- Verbindung akzeptiert von {client_address}, lese Buffer')
                connection.settimeout(2)
                with connection:
                    buffer = bytearray()
@@ -36,21 +37,21 @@ try:
                                message_bytes = bytes(buffer[:delim_pos])
                                break
                        if not buffer:
-                           print('Server: Keine Daten empfangen.')
+                           logger.info('Server: Keine Daten empfangen.')
                        elif buffer.find(DELIMITER_BYTES) == -1:
-                           print('Server: Nachricht unvollständig (Delimiter nicht empfangen).')
+                           logger.info('Server: Nachricht unvollständig (Delimiter nicht empfangen).')
                        else:
                            try:
                                message = json.loads(message_bytes.decode(ENCODING))
                                for k, v in message.items():
-                                   print(f'\t- {k}: {v}')
+                                   logger.info(f'\t- {k}: {v}')
                            except UnicodeDecodeError as e:
-                               print(
+                               logger.info(f'\t- {e.__class__.__name__} {e}'
                                    'Server hat Message empfangen, aber konnte diese nicht lesen, Fehler: '
                                    f'{e.__class__.__name__} {e}'
                                )
                    except Exception as e:
-                       print(
+                       logger.error(f'\t- {e.__class__.__name__} {e}'
                            'Server: Fehler beim Empfangen der Daten, Fehler: '
                            f'{e.__class__.__name__} {e}'
                        )
@@ -58,8 +59,8 @@ try:
                        response = hex(len(message_bytes))
                        connection.sendall(response.encode(ENCODING))
                    except Exception as e:
-                       print(f'Fehler beim Senden: {e.__class__.__name__} {e}')
+                       logger.error(f'Fehler beim Senden: {e.__class__.__name__} {e}')
            except Exception as e:
-               print(f'\t- Fehler im Verbindungs-Loop: {e.__class__.__name__} {e}')
+               logger.error(f'\t- Fehler im Verbindungs-Loop: {e.__class__.__name__} {e}')
 except Exception as e:
-   print(f'Ein Fehler ist aufgetretten: {e.__class__.__name__} {e}')
+   logger.error(f'Ein Fehler ist aufgetretten: {e.__class__.__name__} {e}')

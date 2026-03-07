@@ -1,7 +1,9 @@
-import socket
 import time
 import json
+import socket
 import datetime
+
+from utils.logger_conifg import client_logger as logger
 
 server_address = ('127.0.0.1', 6543)
 ENCODING = 'utf-8'
@@ -22,15 +24,16 @@ def send_message(address: tuple[str, int], text: str) -> bool:
         }
         encoded_message = json.dumps(message).encode(ENCODING)
         message_length = len(encoded_message)
-        print(f'\nNachrichtenlänge: {message_length}')
+        logger.info(f'Nachrichtenlänge: {message_length}')
         client_socket.sendall(encoded_message + DELIMITER_BYTES)
         response_length = int(client_socket.recv(1024).decode(ENCODING).strip(), 16)
-        print(f'Nachrichtenlänge beim Server: {response_length}')
-        print(f'Nachrichtenintegrität: {'Ja' if message_length == response_length else 'Nein'}')
+        logger.info(f'Nachrichtenlänge beim Server: {response_length}')
+
+        logger.info(f'Nachrichtenintegrität: {'Ja' if message_length == response_length else 'Nein'}')
         client_socket.close()
         return True
     except Exception as e:
-        print(f'Fehler beim Senden: {e.__class__.__name__} {e}')
+        logger.error(f'Fehler beim Senden: {e.__class__.__name__} {e}')
     return False
 
 
