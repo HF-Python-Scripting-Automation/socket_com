@@ -1,43 +1,75 @@
-import time
+#!/usr/bin/env python3
+import sys
 import json
 import socket
 import datetime
-
-from utils.logger_conifg import client_logger as logger
-
-server_address = ('127.0.0.1', 6543)
-ENCODING = 'utf-8'
-DELIMITER = '\n'
-DELIMITER_BYTES = DELIMITER.encode(ENCODING)
-CLIENT_NAME = 'Client Nr. 12421'
-DT_FMT = '%d.%m.%Y %H:%M:%S'
+import time
+import argparse
+import traceback
+from utils.logger_conifg import get_client_logger
+logger = get_client_logger()
 
 
-def send_message(address: tuple[str, int], text: str) -> bool:
-    try:
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(address)
-        message = {
-            'sender': CLIENT_NAME,
+
+class JsonClient:
+    def __init__(self, host: str, port: int, name: str):
+        self.address = (host, port)
+        self.name = name
+        self.encoding = 'utf-8'
+        self.delimiter = b'\n'
+
+    def send(self, text: str) -> bool:
+        payload = {
+            'sender': self.name,
             'content': text,
-            'timestamp': datetime.datetime.now().strftime(DT_FMT),
+            'timestamp': datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S'),
         }
-        encoded_message = json.dumps(message).encode(ENCODING)
-        message_length = len(encoded_message)
-        logger.info(f'Nachrichtenlänge: {message_length}')
-        client_socket.sendall(encoded_message + DELIMITER_BYTES)
-        response_length = int(client_socket.recv(1024).decode(ENCODING).strip(), 16)
-        logger.info(f'Nachrichtenlänge beim Server: {response_length}')
+        try:
+            encoded = json.dumps(payload).encode(self.encoding)
+            with socket.create_connection(self.address, timeout=5) as sock:
+                sock.sendall(encoded + self.delimiter)
 
-        logger.info(f'Nachrichtenintegrität: {'Ja' if message_length == response_length else 'Nein'}')
-        client_socket.close()
-        return True
-    except Exception as e:
-        logger.error(f'Fehler beim Senden: {e.__class__.__name__} {e}')
-    return False
+                raw_res = sock.recv(1024).decode(self.encoding).strip()
+                if not raw_res: return False
+
+                server_len = int(raw_res, 16)
+                success = (len(encoded) == server_len)
+                logger.info(f"Senden: {success} (Server: {server_len} Bytes)")
+                return success
+        except Exception as e:
+            logger.error(f"Sende-Fehler: {e}")
+            return False
 
 
-for x in range(1, 21):
-    send_message(server_address, f'Wir senden Nachricht {x} Bloat {[x for x in range(50)]*x}')
-    time.sleep(0.1)
+def main(args: argparse.Namespace) -> int:
+    try:
+        client = JsonClient(args.host, args.port, args.name)
+        for i in range(1, args.count + 1):
+            content = f"Test-Nachricht {i}"
+            if args.bloat:
+                content += f" | Daten: {list(range(20)) * i}"
 
+            client.send(content)
+            time.sleep(args.delay)
+        return 0
+    except Exception:
+        traceback.print_exc()
+        return -1
+
+
+def cli() -> int:
+    parser = argparse.ArgumentParser(description="JSON TCP Client")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=6543)
+    parser.add_argument("--name", default="Client_12421")
+    parser.add_argument("-c", "--count", type=int, default=20, help="Anzahl Nachrichten")
+    parser.add_argument("-d", "--delay", type=float, default=0.1, help="Pause zw. Nachrichten")
+    parser.add_argument("--bloat", action="store_true", help="Sende extra große Datenmengen")
+    return main(parser.parse_args())
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(cli())
+    except KeyboardInterrupt:
+        sys.exit(130)

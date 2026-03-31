@@ -1,66 +1,81 @@
+#!/usr/bin/env python3
+import sys
 import json
 import socket
-from utils.logger_conifg import server_logger as logger
-
-server_address = ('127.0.0.1', 6543)
-ENCODING = 'utf-8'
-DELIMITER = '\n'
-DELIMITER_BYTES = DELIMITER.encode(ENCODING)
-DT_FMT = '%d.%m.%Y %H:%M:%S'
+import argparse
+import traceback
+from utils.logger_conifg import get_server_logger
+logger = get_server_logger()
 
 
+class JsonServer:
+    def __init__(self, host: str, port: int):
+        self.address = (host, port)
+        self.encoding = 'utf-8'
+        self.delimiter = b'\n'
+
+    def run(self):
+        """Hauptloop des Servers."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(self.address)
+            sock.listen(5)
+            logger.info(f"Server gestartet auf {self.address}")
+
+            while True:
+                conn, addr = sock.accept()
+                self._handle_client(conn, addr)
+
+    def _handle_client(self, conn, addr):
+        with conn:
+            conn.settimeout(2.0)
+            logger.info(f"Verbindung von {addr}")
+            try:
+                buffer = bytearray()
+                while True:
+                    chunk = conn.recv(4096)
+                    if not chunk: break
+                    buffer.extend(chunk)
+                    if self.delimiter in buffer: break
+
+                if not buffer: return
+
+                # Logik: Daten verarbeiten
+                msg_bytes = buffer.split(self.delimiter)[0]
+                message = json.loads(msg_bytes.decode(self.encoding))
+
+                for k, v in message.items():
+                    logger.info(f"  {k}: {v}")
+
+                # Antwort senden (Länge in Hex)
+                response = hex(len(msg_bytes)).encode(self.encoding)
+                conn.sendall(response)
+
+            except Exception as e:
+                logger.error(f"Fehler bei Client {addr}: {e}")
 
 
-try:
-   with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-       server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-       server_socket.bind(server_address)
-       server_socket.listen(1)
-       logger.info(f'Server auf {server_address[0]}:{server_address[1]} gestartet')
+def main(args: argparse.Namespace) -> int:
+    try:
+        server = JsonServer(args.host, args.port)
+        server.run()
+        return 0
+    except Exception:
+        print("\n[Server Crash]", file=sys.stderr)
+        traceback.print_exc()
+        return -1
 
-       while True:
-           logger.info('\nWarte auf eingehende Verbindung...')
-           try:
-               connection, client_address = server_socket.accept()
-               logger.info(f'\t- Verbindung akzeptiert von {client_address}, lese Buffer')
-               connection.settimeout(2)
-               with connection:
-                   buffer = bytearray()
-                   try:
-                       while True:
-                           chunk = connection.recv(1024)
-                           if not chunk:
-                               break
-                           buffer.extend(chunk)
-                           delim_pos = buffer.find(DELIMITER_BYTES)
-                           if delim_pos != -1:
-                               message_bytes = bytes(buffer[:delim_pos])
-                               break
-                       if not buffer:
-                           logger.info('Server: Keine Daten empfangen.')
-                       elif buffer.find(DELIMITER_BYTES) == -1:
-                           logger.info('Server: Nachricht unvollständig (Delimiter nicht empfangen).')
-                       else:
-                           try:
-                               message = json.loads(message_bytes.decode(ENCODING))
-                               for k, v in message.items():
-                                   logger.info(f'\t- {k}: {v}')
-                           except UnicodeDecodeError as e:
-                               logger.info(f'\t- {e.__class__.__name__} {e}'
-                                   'Server hat Message empfangen, aber konnte diese nicht lesen, Fehler: '
-                                   f'{e.__class__.__name__} {e}'
-                               )
-                   except Exception as e:
-                       logger.error(f'\t- {e.__class__.__name__} {e}'
-                           'Server: Fehler beim Empfangen der Daten, Fehler: '
-                           f'{e.__class__.__name__} {e}'
-                       )
-                   try:
-                       response = hex(len(message_bytes))
-                       connection.sendall(response.encode(ENCODING))
-                   except Exception as e:
-                       logger.error(f'Fehler beim Senden: {e.__class__.__name__} {e}')
-           except Exception as e:
-               logger.error(f'\t- Fehler im Verbindungs-Loop: {e.__class__.__name__} {e}')
-except Exception as e:
-   logger.error(f'Ein Fehler ist aufgetretten: {e.__class__.__name__} {e}')
+
+def cli() -> int:
+    parser = argparse.ArgumentParser(description="JSON TCP Server")
+    parser.add_argument("--host", default="127.0.0.1", help="Listening Host")
+    parser.add_argument("--port", type=int, default=6543, help="Listening Port")
+    return main(parser.parse_args())
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(cli())
+    except KeyboardInterrupt:
+        logger.info("Server durch Benutzer beendet.")
+        sys.exit(0)
