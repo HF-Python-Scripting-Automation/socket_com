@@ -7,3 +7,5 @@ dependencies = [
     "requests==2.7.0",
     "psa_utils @ git+ssh://git@github.com/HF-Python-Scripting-Automation/psa-utils.git"
 ]
+[tool.setuptools]
+packages = ["socket_com"]
