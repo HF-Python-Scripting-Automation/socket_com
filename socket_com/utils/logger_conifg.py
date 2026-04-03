@@ -6,3 +6,6 @@ def get_server_logger():
 
 def get_client_logger():
     return get_logger("Client", filename="client.log", level=logging.DEBUG, clear=True)
+
+def get_scanner_logger():
+    return get_logger("Scanner", filename="scanner.log", level=logging.DEBUG, clear=True)
