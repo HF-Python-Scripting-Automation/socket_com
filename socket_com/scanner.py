@@ -1,96 +1,84 @@
 #!/usr/bin/env python3
 import sys
-import socket
-import errno
+import asyncio
 import argparse
-import traceback
 from utils.logger_conifg import get_scanner_logger
 
-# Globaler Logger für das Modul
 logger = get_scanner_logger()
 
 
-class PortScanner:
-    def __init__(self, target: str, timeout: float = 0.2):
+class AsyncPortScanner:
+    PROBES = {
+        "MQTT": b"\x10\x0c\x00\x04MQTT\x04\x02\x00\x00\x00\x00",
+        "HTTP": b"HEAD / HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        "GENERIC": b"\r\n"
+    }
+
+    def __init__(self, target: str, timeout: float = 1.0):
         self.target = target
         self.timeout = timeout
-        self.error_descriptions = {
-            errno.ECONNREFUSED: "Port geschlossen oder Verbindung abgelehnt.",
-            errno.ETIMEDOUT: "Zeitüberschreitung (Firewall oder Host down).",
-            errno.ENETUNREACH: "Netzwerk nicht erreichbar.",
-            errno.EHOSTUNREACH: "Host nicht erreichbar.",
-        }
 
-    def scan(self, start_port: int, end_port: int = None) -> dict:
-        """Führt den Scan für einen Bereich oder einen einzelnen Port aus."""
-        results = {}
-        end = end_port if end_port else start_port
+    async def grab_info(self, reader, writer, port: int) -> str:
+        """Versucht Informationen über den Dienst zu erhalten."""
+        try:
+            # Sende Stupser
+            if port == 1883:
+                writer.write(self.PROBES["MQTT"])
+            elif port in [80, 8080, 3000]:
+                writer.write(self.PROBES["HTTP"])
+            else:
+                writer.write(self.PROBES["GENERIC"])
 
-        logger.info(f"Scanning {self.target} von Port {start_port} bis {end}...")
+            await writer.drain()
 
-        for port in range(start_port, end + 1):
-            results[port] = self._check_port(port)
+            # Lese Antwort (Das Banner vom Server)
+            data = await asyncio.wait_for(reader.read(1024), timeout=1.5)
+
+            if not data: return "Kein Banner"
+
+            decoded = data.decode('utf-8', errors='ignore').strip()
+            # Falls unser Server gefunden wurde, nehmen wir die erste Zeile
+            return decoded.split('\n')[0][:50]
+        except Exception:
+            return "Timeout beim Probing"
+
+    async def scan_port(self, port: int) -> dict:
+        try:
+            conn = asyncio.open_connection(self.target, port)
+            reader, writer = await asyncio.wait_for(conn, timeout=self.timeout)
+
+            info = await self.grab_info(reader, writer, port)
+
+            writer.close()
+            await writer.wait_closed()
+
+            logger.info(f"Port {port:5} [OPEN] - Info: {info}")
+            return {port: {"status": "OPEN", "info": info}}
+        except:
+            return {port: {"status": "CLOSED", "info": "-"}}
+
+    async def run_scan(self, start: int, end: int):
+        logger.info(f"Starte Profi-Scan auf {self.target} ({start}-{end})...")
+        tasks = [self.scan_port(p) for p in range(start, end + 1)]
+        results = await asyncio.gather(*tasks)
         return results
 
-    def _check_port(self, port: int) -> dict:
-        """Interner Check für einen einzelnen Port."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(self.timeout)
-            result_code = s.connect_ex((self.target, port))
 
-            res = {
-                'available': result_code == 0,
-                'error_id': result_code if result_code != 0 else None,
-            }
-
-            # Optional: Logge jeden Treffer sofort
-            if res['available']:
-                logger.info(f"Gefunden: Port {port} ist OFFEN")
-
-            return res
-
-    def log_report(self, results: dict):
-        """Loggt den fertigen Report über den Logger."""
-        logger.info(f"--- Scan Report für {self.target} ---")
-        for port, data in results.items():
-            if data['available']:
-                status = "OFFEN"
-                logger.info(f"Port {port:5}: {status}")
-            else:
-                e_id = data['error_id']
-                error_name = errno.errorcode.get(e_id, 'Unbekannter Fehler')
-                desc = self.error_descriptions.get(e_id, "Keine detaillierte Beschreibung verfügbar.")
-                status = f"GESCHLOSSEN [EID: {e_id} | {error_name}]: {desc}"
-                # Geschlossene Ports als Debug, um das Info-Log sauber zu halten
-                logger.debug(f"Port {port:5}: {status}")
-
-
-def main(args: argparse.Namespace) -> int:
-    try:
-        scanner = PortScanner(args.target, args.timeout)
-        results = scanner.scan(args.start, args.end)
-        scanner.log_report(results)
-        return 0
-    except Exception as e:
-        logger.error(f"Scanner Crash: {e}")
-        # Traceback wird ebenfalls über den Logger geloggt
-        logger.error(traceback.format_exc())
-        return -1
+async def main_async(args: argparse.Namespace) -> int:
+    scanner = AsyncPortScanner(args.target, args.timeout)
+    await scanner.run_scan(args.start, args.end or args.start)
+    return 0
 
 
 def cli() -> int:
-    parser = argparse.ArgumentParser(description="Python Port Scanner CLI")
-    parser.add_argument("target", help="Ziel IP-Adresse oder Hostname")
-    parser.add_argument("--start", type=int, default=1, help="Start Port (Default: 1)")
-    parser.add_argument("--end", type=int, help="End Port (Optional)")
-    parser.add_argument("--timeout", type=float, default=0.2, help="Timeout (Sekunden)")
-
-    return main(parser.parse_args())
+    parser = argparse.ArgumentParser(description="Async Port Scanner")
+    parser.add_argument("target")
+    parser.add_argument("--start", type=int, default=1)
+    parser.add_argument("--end", type=int)
+    parser.add_argument("--timeout", type=float, default=1.0)
+    args = parser.parse_args()
+    return asyncio.run(main_async(args))
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(cli())
-    except KeyboardInterrupt:
-        logger.info("Scan durch Benutzer beendet.")
-        sys.exit(0)
+    sys.exit(cli())
