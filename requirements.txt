@@ -1,0 +1,5 @@
+cffi==2.0.0
+colorama==0.4.6
+cryptography==46.0.6
+psa_utils @ file:///home/vmadmin/Desktop/workstation/psa-utils
+pycparser==3.0
