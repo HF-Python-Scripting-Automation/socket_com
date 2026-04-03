@@ -1,0 +1,66 @@
+---
+- name: Deploy Socket Server
+  hosts: socket_servers
+  become: yes
+  vars:
+    app_dir: /opt/socket_server
+
+  tasks:
+    - name: Ensure target directory exists and belongs to vmadmin
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: vmadmin
+        group: vmadmin
+        mode: '0755'
+
+    - name: Copy project files
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ app_dir }}/"
+        owner: vmadmin
+        group: vmadmin
+        mode: '0644'
+      loop:
+        - socket_com
+        - secret.key
+        - pyproject.toml
+
+    - name: Ensure all files in app_dir belong to vmadmin (Recursive)
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: vmadmin
+        group: vmadmin
+        recurse: yes
+
+    - name: Install system dependencies (APT)
+      ansible.builtin.apt:
+        name:
+          - python3-venv
+          - git
+        state: present
+        update_cache: yes
+
+    - name: Install Python dependencies into venv
+      become: no
+      ansible.builtin.pip:
+        name: "{{ app_dir }}"
+        virtualenv: "{{ app_dir }}/.venv"
+        virtualenv_command: /usr/bin/python3 -m venv
+      environment:
+        GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no"
+
+    - name: Deploy systemd service template
+      ansible.builtin.template:
+        src: templates/socket_server.service.j2
+        dest: /etc/systemd/system/socket_server.service
+        mode: '0644'
+
+    - name: Reload systemd, enable and restart Socket Server service
+      ansible.builtin.systemd:
+        name: socket_server.service
+        enabled: yes
+        state: restarted
+        # FIX: Hier wird sichergestellt, dass die .j2 Datei VOR dem Start eingelesen wird
+        daemon_reload: yes
