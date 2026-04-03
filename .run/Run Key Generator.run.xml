@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Run Scanner JSONServer" type="PythonConfigurationType" factoryName="Python" folderName="Run Port Scanners">
+  <configuration default="false" name="Run Key Generator" type="PythonConfigurationType" factoryName="Python">
     <module name="socket_com" />
     <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
@@ -14,8 +14,8 @@
     <option name="ADD_CONTENT_ROOTS" value="true" />
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <option name="RUN_TOOL" value="" />
-    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/socket_com/scanner.py" />
-    <option name="PARAMETERS" value="127.0.0.1 --start 6543 --end 6549 --timeout 0.5" />
+    <option name="SCRIPT_NAME" value="$PROJECT_DIR$/socket_com/key_generator.py" />
+    <option name="PARAMETERS" value="" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />
