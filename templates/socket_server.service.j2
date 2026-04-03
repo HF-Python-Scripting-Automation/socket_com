@@ -1,0 +1,15 @@
+[Unit]
+Description=Secure Python TCP Socket Server (PSA Woche 4)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/socket_server
+# Wir überschreiben den Host-Default hier dynamisch für das Deployment
+ExecStart=/opt/socket_server/.venv/bin/python3 /opt/socket_server/socket_com/server.py --host 0.0.0.0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
