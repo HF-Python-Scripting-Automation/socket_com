@@ -68,7 +68,7 @@ def main(args: argparse.Namespace) -> int:
 
 def cli() -> int:
     parser = argparse.ArgumentParser(description="JSON TCP Server")
-    parser.add_argument("--host", default="192.168.110.04", help="Listening Host")
+    parser.add_argument("--host", default="127.0.0.1", help="Listening Host")
     parser.add_argument("--port", type=int, default=6543, help="Listening Port")
     return main(parser.parse_args())
 
